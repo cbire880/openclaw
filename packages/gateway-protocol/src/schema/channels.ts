@@ -77,6 +77,220 @@ const TalkAgentControlModeSchema = Type.Union([
   Type.Literal("followup"),
 ]);
 
+const TrustLevelSchema = Type.Union([Type.Literal("internal"), Type.Literal("external")]);
+
+const LeaseStatusSchema = Type.Union([
+  Type.Literal("held"),
+  Type.Literal("expired"),
+  Type.Literal("released"),
+  Type.Literal("revoked"),
+]);
+
+const HandoffStateSchema = Type.Union([
+  Type.Literal("request"),
+  Type.Literal("accept"),
+  Type.Literal("decline"),
+  Type.Literal("complete"),
+]);
+
+const LedgerEventTypeSchema = Type.Union([
+  Type.Literal("attach"),
+  Type.Literal("register"),
+  Type.Literal("lease_mint"),
+  Type.Literal("lease_refresh"),
+  Type.Literal("lease_revoke"),
+  Type.Literal("lease_release"),
+  Type.Literal("checkpoint"),
+  Type.Literal("detach"),
+  Type.Literal("handoff_request"),
+  Type.Literal("handoff_accept"),
+  Type.Literal("handoff_decline"),
+  Type.Literal("handoff_complete"),
+  Type.Literal("reattach"),
+  Type.Literal("progress_update"),
+  Type.Literal("blocked_update"),
+  Type.Literal("decision_response"),
+  Type.Literal("watchdog_nudge"),
+]);
+
+/** Participant identity carried across bridge, UI, and ephemeral client surfaces. */
+const TalkSessionParticipantSchema = Type.Object(
+  {
+    participant_id: NonEmptyString,
+    work_session_id: NonEmptyString,
+    source_lane: NonEmptyString,
+    surface_type: NonEmptyString,
+    surface_label: NonEmptyString,
+    session_ref: NonEmptyString,
+    role: Type.Union([
+      Type.Literal("requester"),
+      Type.Literal("observer"),
+      Type.Literal("interactive_controller"),
+      Type.Literal("worker"),
+      Type.Literal("supervisor"),
+    ]),
+    trust_level: TrustLevelSchema,
+    external_client: Type.Boolean(),
+    status: Type.Union([Type.Literal("attached"), Type.Literal("idle"), Type.Literal("detached")]),
+    attached_at: NonEmptyString,
+    last_seen_at: Type.Optional(Type.String()),
+    detached_at: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+
+/** Lease truth is written by the control plane; clients only consume and request. */
+const TalkSessionLeaseSchema = Type.Object(
+  {
+    lease_id: NonEmptyString,
+    task_id: NonEmptyString,
+    work_session_id: NonEmptyString,
+    participant_id: NonEmptyString,
+    owner_agent: NonEmptyString,
+    holder_participant_id: NonEmptyString,
+    holder_surface_type: NonEmptyString,
+    holder_surface_label: NonEmptyString,
+    execution_mode: NonEmptyString,
+    execution_surface: NonEmptyString,
+    scope_type: NonEmptyString,
+    repo: Type.Optional(Type.String()),
+    worktree: Type.Optional(Type.String()),
+    branch: Type.Optional(Type.String()),
+    allowed_actions: Type.Optional(Type.Array(Type.String())),
+    issued_at: NonEmptyString,
+    expires_at: NonEmptyString,
+    refresh_deadline: NonEmptyString,
+    status: LeaseStatusSchema,
+  },
+  { additionalProperties: false },
+);
+
+/** Continuity checkpoint reference shared by handoff and Mission Control views. */
+const TalkSessionCheckpointSchema = Type.Object(
+  {
+    schema_version: NonEmptyString,
+    record_type: NonEmptyString,
+    checkpoint_id: NonEmptyString,
+    checkpoint_version: NonEmptyString,
+    sequence: Type.Integer({ minimum: 1 }),
+    task_id: NonEmptyString,
+    work_session_id: NonEmptyString,
+    participant_id: NonEmptyString,
+    correlation_id: NonEmptyString,
+    created_at: NonEmptyString,
+    updated_at: NonEmptyString,
+    state: Type.String(),
+    objective: Type.String(),
+    current_summary: Type.String(),
+    current_goal: Type.String(),
+    current_worker: Type.String(),
+    current_steering_client: Type.String(),
+    active_repo: Type.Optional(Type.String()),
+    active_worktree: Type.Optional(Type.String()),
+    active_branch: Type.Optional(Type.String()),
+    lease_id: Type.Optional(Type.String()),
+    lease_state: Type.Optional(Type.String()),
+    latest_result: Type.Optional(Type.String()),
+    blockers: Type.Optional(Type.Array(Type.String())),
+    next_step: Type.String(),
+    resume_label: Type.Optional(Type.String()),
+    handoff_label: Type.Optional(Type.String()),
+    next_checkin_at: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+
+/** Append-only ledger event metadata without embedding private transcript content. */
+const TalkSessionLedgerEventSchema = Type.Object(
+  {
+    event_id: NonEmptyString,
+    schema_version: NonEmptyString,
+    event_type: LedgerEventTypeSchema,
+    task_id: NonEmptyString,
+    work_session_id: NonEmptyString,
+    participant_id: Type.Optional(Type.String()),
+    lease_id: Type.Optional(Type.String()),
+    correlation_id: NonEmptyString,
+    actor: NonEmptyString,
+    source: NonEmptyString,
+    source_lane: NonEmptyString,
+    source_surface: NonEmptyString,
+    timestamp: NonEmptyString,
+    summary: Type.Optional(Type.String()),
+    details: Type.Optional(Type.Unknown()),
+    state_before: Type.Optional(Type.String()),
+    state_after: Type.Optional(Type.String()),
+    next_checkin_at: Type.Optional(Type.String()),
+    evidence: Type.Optional(Type.Array(Type.String())),
+  },
+  { additionalProperties: false },
+);
+
+/** Handoff state and next-action wording consumed by bridge clients and Mission Control. */
+const TalkSessionHandoffSchema = Type.Object(
+  {
+    task_id: NonEmptyString,
+    work_session_id: NonEmptyString,
+    owner: NonEmptyString,
+    source_lane: NonEmptyString,
+    handoff_from: NonEmptyString,
+    handoff_to: NonEmptyString,
+    execution_target: NonEmptyString,
+    execution_mode: NonEmptyString,
+    participant_role: NonEmptyString,
+    state: HandoffStateSchema,
+    next_action: NonEmptyString,
+    next_checkin: Type.Optional(Type.String()),
+    expected_confirmation: Type.Optional(Type.String()),
+    active_lease_id: Type.Optional(Type.String()),
+    evidence: Type.Optional(Type.Array(Type.String())),
+  },
+  { additionalProperties: false },
+);
+
+/** Shared continuity model for session views, handoffs, checkpoints, and leases. */
+const TalkSessionContinuitySchema = Type.Object(
+  {
+    schema_version: Type.Optional(Type.String()),
+    // Pass-through until producer and consume-side session state vocabularies are reconciled.
+    state: Type.Optional(Type.String()),
+    sessionState: Type.Optional(Type.String()),
+    task_id: Type.Optional(Type.String()),
+    work_session_id: Type.Optional(Type.String()),
+    title: Type.Optional(Type.String()),
+    current_summary: Type.Optional(Type.String()),
+    current_goal: Type.Optional(Type.String()),
+    primary_worker: Type.Optional(Type.String()),
+    primary_controller: Type.Optional(Type.String()),
+    active_repo: Type.Optional(Type.String()),
+    active_worktree: Type.Optional(Type.String()),
+    active_branch: Type.Optional(Type.String()),
+    participants: Type.Optional(Type.Array(TalkSessionParticipantSchema)),
+    active_participant_id: Type.Optional(Type.String()),
+    lease: Type.Optional(TalkSessionLeaseSchema),
+    checkpoints: Type.Optional(Type.Array(TalkSessionCheckpointSchema)),
+    latest_checkpoint_id: Type.Optional(Type.String()),
+    handoff: Type.Optional(TalkSessionHandoffSchema),
+    ledger_events: Type.Optional(Type.Array(TalkSessionLedgerEventSchema)),
+    next_action: Type.Optional(Type.String()),
+    next_action_owner: Type.Optional(Type.String()),
+    blocked_on: Type.Optional(Type.String()),
+    expected_next_change: Type.Optional(Type.String()),
+    material_activity_at: Type.Optional(Type.String()),
+    last_activity: Type.Optional(Type.String()),
+    next_checkin: Type.Optional(Type.String()),
+    next_checkpoint_at: Type.Optional(Type.String()),
+    refresh_deadline: Type.Optional(Type.String()),
+    lease_state: Type.Optional(Type.String()),
+    watchdog_reason: Type.Optional(Type.String()),
+    strike_count: Type.Optional(Type.Integer({ minimum: 0 })),
+    deadline: Type.Optional(Type.String()),
+    warnings: Type.Optional(Type.Array(Type.String())),
+    blockers: Type.Optional(Type.Array(Type.String())),
+  },
+  { additionalProperties: false },
+);
+
 /** Stable event names emitted by Talk sessions across providers/transports. */
 const TalkEventTypeSchema = Type.Union([
   Type.Literal("session.started"),
@@ -161,6 +375,7 @@ export const TalkEventSchema = Type.Object(
     callId: Type.Optional(Type.String()),
     itemId: Type.Optional(Type.String()),
     parentId: Type.Optional(Type.String()),
+    continuity: Type.Optional(TalkSessionContinuitySchema),
     payload: Type.Unknown(),
   },
   {
@@ -198,6 +413,8 @@ export const TalkClientCreateParamsSchema = Type.Object(
     mode: Type.Optional(TalkModeSchema),
     transport: Type.Optional(TalkTransportSchema),
     brain: Type.Optional(TalkBrainSchema),
+    participant: Type.Optional(TalkSessionParticipantSchema),
+    continuity: Type.Optional(TalkSessionContinuitySchema),
   },
   { additionalProperties: false },
 );
@@ -289,6 +506,8 @@ export const TalkSessionCreateParamsSchema = Type.Object(
     transport: Type.Optional(TalkTransportSchema),
     brain: Type.Optional(TalkBrainSchema),
     ttlMs: Type.Optional(Type.Integer({ minimum: 1000, maximum: 3600000 })),
+    participant: Type.Optional(TalkSessionParticipantSchema),
+    continuity: Type.Optional(TalkSessionContinuitySchema),
   },
   { additionalProperties: false },
 );
@@ -375,6 +594,8 @@ const TalkSessionManagedRoomStateSchema = Type.Object(
   {
     activeClientId: Type.Optional(Type.String()),
     activeTurnId: Type.Optional(Type.String()),
+    participants: Type.Optional(Type.Array(TalkSessionParticipantSchema)),
+    continuity: Type.Optional(TalkSessionContinuitySchema),
     recentTalkEvents: Type.Array(TalkEventSchema),
   },
   { additionalProperties: false },
@@ -398,6 +619,7 @@ const TalkSessionManagedRoomRecordSchema = Type.Object(
     brain: TalkBrainSchema,
     createdAt: Type.Number(),
     expiresAt: Type.Number(),
+    continuity: Type.Optional(TalkSessionContinuitySchema),
     room: TalkSessionManagedRoomStateSchema,
   },
   { additionalProperties: false },
@@ -502,6 +724,7 @@ export const TalkSessionCreateResultSchema = Type.Object(
     model: Type.Optional(Type.String()),
     voice: Type.Optional(Type.String()),
     expiresAt: Type.Optional(Type.Number()),
+    continuity: Type.Optional(TalkSessionContinuitySchema),
   },
   { additionalProperties: false },
 );
@@ -583,6 +806,7 @@ const BrowserRealtimeManagedRoomSessionSchema = Type.Object(
     model: Type.Optional(Type.String()),
     voice: Type.Optional(Type.String()),
     expiresAt: Type.Optional(Type.Number()),
+    continuity: Type.Optional(TalkSessionContinuitySchema),
   },
   { additionalProperties: false },
 );
