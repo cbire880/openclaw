@@ -463,14 +463,15 @@ describe("bun global install smoke", () => {
     expect(script).not.toContain('docker cp "${container_id}:/app/dist" "$ROOT_DIR/dist"');
   });
 
-  it("gates workflow Bun install smoke to scheduled and release-check runs", () => {
+  it("gates workflow Bun install smoke to manual and release-check runs", () => {
     const workflow = readFileSync(INSTALL_SMOKE_WORKFLOW_PATH, "utf8");
     const releaseChecks = readFileSync(RELEASE_CHECKS_WORKFLOW_PATH, "utf8");
 
     expect(workflow).not.toContain("pull_request:");
     expect(workflow).not.toContain("branches: [main]");
     expect(workflow).toContain("workflow_call:");
-    expect(workflow).toContain('cron: "17 3 * * *"');
+    expect(workflow).not.toContain("schedule:");
+    expect(workflow).not.toContain('cron: "17 3 * * *"');
     expect(workflow).toContain("run_bun_global_install_smoke:");
     expect(workflow).toContain(
       "if: needs.preflight.outputs.run_full_install_smoke == 'true' && needs.preflight.outputs.run_bun_global_install_smoke == 'true'",
@@ -497,11 +498,17 @@ describe("bun global install smoke", () => {
     expect(workflow).not.toContain("github.event_name == 'pull_request'");
     expect(workflow).not.toContain("node scripts/ci-changed-scope.mjs");
     expect(workflow).toContain("OPENCLAW_CI_WORKFLOW_BUN_GLOBAL_INSTALL_SMOKE");
-    expect(workflow).toContain('if [ "$event_name" = "schedule" ]; then');
+    expect(workflow).not.toContain('if [ "$event_name" = "schedule" ]; then');
     expect(workflow).toContain('echo "run_bun_global_install_smoke=$run_bun_global_install_smoke"');
     expect(workflow).toContain("run_fast_install_smoke=true");
     expect(workflow).toContain("run_full_install_smoke=true");
     expect(workflow).toContain("run_install_smoke=true");
+    expect(workflow).toContain("timeout-minutes: 5");
+    expect(workflow).toContain("timeout-minutes: 90");
+    expect(workflow).toContain("timeout-minutes: 60");
+    expect(workflow).toContain("timeout-minutes: 45");
+    expect(workflow).toContain("timeout-minutes: 75");
+    expect(workflow).toContain("timeout-minutes: 30");
     expect(workflow).toContain("install-smoke-fast:");
     expect(workflow).toContain("run_fast_install_smoke");
     expect(workflow).toContain("run_full_install_smoke");
