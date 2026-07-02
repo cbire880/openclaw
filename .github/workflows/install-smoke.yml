@@ -1,8 +1,6 @@
 name: Install Smoke
 
 on:
-  schedule:
-    - cron: "17 3 * * *"
   workflow_dispatch:
     inputs:
       run_bun_global_install_smoke:
@@ -46,6 +44,7 @@ env:
 jobs:
   preflight:
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     outputs:
       docs_only: ${{ steps.manifest.outputs.docs_only }}
       run_install_smoke: ${{ steps.manifest.outputs.run_install_smoke }}
@@ -80,9 +79,7 @@ jobs:
           target_sha="$(git rev-parse HEAD)"
           owner="$(printf '%s' "${GITHUB_REPOSITORY_OWNER:-openclaw}" | tr '[:upper:]' '[:lower:]')"
           dockerfile_image="ghcr.io/${owner}/openclaw-dockerfile-smoke:${target_sha}"
-          if [ "$event_name" = "schedule" ]; then
-            run_bun_global_install_smoke=true
-          elif [ "$event_name" = "workflow_dispatch" ] || [ "$event_name" = "workflow_call" ]; then
+          if [ "$event_name" = "workflow_dispatch" ] || [ "$event_name" = "workflow_call" ]; then
             if [ "$workflow_bun_global_install_smoke" = "true" ]; then
               run_bun_global_install_smoke=true
             fi
@@ -101,6 +98,7 @@ jobs:
     needs: [preflight]
     if: needs.preflight.outputs.run_fast_install_smoke == 'true' && needs.preflight.outputs.run_full_install_smoke != 'true'
     runs-on: ubuntu-24.04
+    timeout-minutes: 90
     env:
       DOCKER_BUILD_SUMMARY: "false"
       DOCKER_BUILD_RECORD_UPLOAD: "false"
@@ -210,6 +208,7 @@ jobs:
     needs: [preflight]
     if: needs.preflight.outputs.run_full_install_smoke == 'true'
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
     outputs:
       image_ref: ${{ steps.image.outputs.image_ref }}
     env:
@@ -287,6 +286,7 @@ jobs:
     needs: [preflight]
     if: needs.preflight.outputs.run_full_install_smoke == 'true'
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - name: Checkout CLI
         uses: actions/checkout@v6
@@ -303,6 +303,7 @@ jobs:
     needs: [preflight, root_dockerfile_image]
     if: needs.preflight.outputs.run_full_install_smoke == 'true'
     runs-on: ubuntu-24.04
+    timeout-minutes: 75
     steps:
       - name: Checkout CLI
         uses: actions/checkout@v6
@@ -406,6 +407,7 @@ jobs:
     needs: [preflight, root_dockerfile_image]
     if: needs.preflight.outputs.run_full_install_smoke == 'true'
     runs-on: ubuntu-24.04
+    timeout-minutes: 90
     env:
       DOCKER_BUILD_SUMMARY: "false"
       DOCKER_BUILD_RECORD_UPLOAD: "false"
@@ -495,6 +497,7 @@ jobs:
     needs: [preflight, root_dockerfile_image]
     if: needs.preflight.outputs.run_full_install_smoke == 'true' && needs.preflight.outputs.run_bun_global_install_smoke == 'true'
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - name: Checkout CLI
         uses: actions/checkout@v6
