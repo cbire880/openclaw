@@ -82,6 +82,24 @@ export type CronRunStatus = "ok" | "error" | "skipped";
 /** Delivery outcome for completion or failure-notification sends. */
 export type CronDeliveryStatus = "delivered" | "not-delivered" | "unknown" | "not-requested";
 
+/**
+ * Transport receipt emitted after an outbound cron delivery succeeds.
+ *
+ * This is deliberately separate from cron bookkeeping: consumers may persist
+ * it before the run-state transaction commits, allowing restart recovery to
+ * distinguish transport success from an unknown bookkeeping outcome.
+ */
+export type CronDeliveryReceipt = {
+  executionId: string;
+  deliveryIdempotencyKey: string;
+  phase: "transport-succeeded";
+  recordedAt: number;
+  channel: string;
+  to: string;
+  accountId?: string;
+  threadId?: string | number;
+};
+
 /** Delivery target snapshot recorded for audit/debug output. */
 export type CronDeliveryTraceTarget = {
   channel?: string;
