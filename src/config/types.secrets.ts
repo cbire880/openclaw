@@ -178,10 +178,19 @@ function formatSecretRefLabel(ref: SecretRef): string {
   return `${ref.source}:${ref.provider}:${ref.id}`;
 }
 
-function createUnresolvedSecretInputError(params: { path: string; ref: SecretRef }): Error {
-  return new Error(
-    `${params.path}: unresolved SecretRef "${formatSecretRefLabel(params.ref)}". Resolve this command against an active gateway runtime snapshot before reading it.`,
-  );
+export class UnresolvedSecretInputError extends Error {
+  readonly path: string;
+  readonly ref: SecretRef;
+
+  constructor(params: { path: string; ref: SecretRef; cause?: unknown }) {
+    super(
+      `${params.path}: unresolved SecretRef "${formatSecretRefLabel(params.ref)}". Resolve this command against an active gateway runtime snapshot before reading it.`,
+      params.cause === undefined ? undefined : { cause: params.cause },
+    );
+    this.name = "UnresolvedSecretInputError";
+    this.path = params.path;
+    this.ref = params.ref;
+  }
 }
 
 /** Throw when a secret field still contains an unresolved SecretRef at a read site. */
@@ -199,7 +208,7 @@ export function assertSecretInputResolved(params: {
   if (!ref) {
     return;
   }
-  throw createUnresolvedSecretInputError({ path: params.path, ref });
+  throw new UnresolvedSecretInputError({ path: params.path, ref });
 }
 
 /** Resolve a secret field to either a literal value, a configured-unavailable ref, or missing. */
@@ -231,7 +240,7 @@ export function resolveSecretInputString(params: {
     };
   }
   if ((params.mode ?? "strict") === "strict") {
-    throw createUnresolvedSecretInputError({ path: params.path, ref });
+    throw new UnresolvedSecretInputError({ path: params.path, ref });
   }
   return {
     status: "configured_unavailable",

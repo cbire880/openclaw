@@ -111,6 +111,10 @@ describe("checkGatewayHealth", () => {
     expect(runtime.error).toHaveBeenCalledWith(
       expect.stringContaining("gateway timeout after 3000ms"),
     );
+    expect(note).toHaveBeenCalledWith(
+      expect.stringContaining("Gateway secret snapshot is unavailable"),
+      "Secret resolution",
+    );
   });
 
   it("reports credentials-required when status RPC auth blocks a reachable gateway", async () => {

@@ -107,6 +107,10 @@ export async function checkGatewayHealth(params: {
       });
       if (gatewayProbeResultSawGateway(probe)) {
         note(
+          "Gateway secret snapshot is unavailable; active SecretRefs are degraded until authenticated WebSocket access is restored.",
+          "Secret resolution",
+        );
+        note(
           GATEWAY_HEALTH_CREDENTIALS_REQUIRED_MESSAGE,
           GATEWAY_HEALTH_CREDENTIALS_REQUIRED_TITLE,
         );
@@ -115,6 +119,10 @@ export async function checkGatewayHealth(params: {
       }
     }
     const message = String(err);
+    note(
+      "Gateway secret snapshot is unavailable; active SecretRefs are degraded and outbound consumers must fail closed until WebSocket access is restored.",
+      "Secret resolution",
+    );
     if (message.includes("gateway closed")) {
       const gatewayDetails = buildGatewayConnectionDetails({ config: params.cfg });
       note("Gateway not running.", "Gateway");

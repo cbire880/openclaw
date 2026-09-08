@@ -36,6 +36,19 @@ Secrets are resolved into an in-memory runtime snapshot.
 
 This keeps secret-provider outages off hot request paths.
 
+## Gateway snapshot transport failures
+
+Command and integration consumers fail closed when the authenticated gateway
+WebSocket drops while resolving `secrets.resolve`. Local SecretRef recovery is
+available only to callers that explicitly opt into the compatibility fallback,
+and only when every active target resolves. Final secret-read boundaries throw
+`UnresolvedSecretInputError`; they do not pass an empty value or a literal
+`env:default:...` reference to an outbound request.
+
+This remediation changes failure reporting only. It does not rotate, revoke,
+or otherwise modify credentials. Investigate an independent credential-validity
+signal before rotating anything.
+
 ## Agent-access boundary
 
 SecretRefs protect credentials from being persisted in supported config and

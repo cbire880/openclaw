@@ -811,6 +811,8 @@ export async function resolveCommandSecretRefsViaGateway(params: {
   config: OpenClawConfig;
   commandName: string;
   targetIds: Set<string>;
+  /** Local recovery is an explicit compatibility escape hatch. */
+  allowLocalFallback?: boolean;
   mode?: CommandSecretResolutionModeInput;
   allowedPaths?: ReadonlySet<string>;
   forcedActivePaths?: ReadonlySet<string>;
@@ -856,6 +858,28 @@ export async function resolveCommandSecretRefsViaGateway(params: {
       optionalActivePaths: params.optionalActivePaths,
     });
   } catch (err) {
+    const localFallbackAllowed = params.allowLocalFallback === true || mode !== "enforce_resolved";
+    if (!localFallbackAllowed) {
+      if (
+        hasForcedActivePaths(params.forcedActivePaths) &&
+        isAllowedPathsSecretsResolveCompatError(err)
+      ) {
+        throw new Error(
+          `${params.commandName}: active gateway does not support command-scoped secret resolution (${formatErrorMessage(err)}). Update the gateway or run this command where the configured SecretRefs can be resolved locally.`,
+          { cause: err },
+        );
+      }
+      if (isUnsupportedSecretsResolveError(err)) {
+        throw new Error(
+          `${params.commandName}: active gateway does not support secrets.resolve (${formatErrorMessage(err)}). Update the gateway or run without SecretRefs.`,
+          { cause: err },
+        );
+      }
+      throw new Error(
+        `${params.commandName}: failed to resolve secrets from the active gateway snapshot (${formatErrorMessage(err)}). Start the gateway and retry; local SecretRef fallback is disabled for active runtime secrets.`,
+        { cause: err },
+      );
+    }
     let forcedActiveCompatFailure: Error | undefined;
     try {
       const fallback = await resolveCommandSecretRefsLocally({
@@ -993,6 +1017,12 @@ export async function resolveCommandSecretRefsViaGateway(params: {
     resolvedState: "resolved_gateway",
   });
   if (analyzed.unresolved.length > 0) {
+    const localFallbackAllowed = params.allowLocalFallback === true || mode !== "enforce_resolved";
+    if (!localFallbackAllowed) {
+      throw new Error(
+        `${params.commandName}: active gateway returned an incomplete secret snapshot. Local SecretRef fallback is disabled for active runtime secrets.`,
+      );
+    }
     try {
       const localFallback = await resolveCommandSecretRefsLocally({
         config: params.config,

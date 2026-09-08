@@ -570,6 +570,7 @@ describe("resolveCommandSecretRefsViaGateway", () => {
         } as unknown as OpenClawConfig,
         commandName: "memory status",
         targetIds: new Set(["talk.providers.*.apiKey"]),
+        allowLocalFallback: true,
       });
 
       expect(readTalkProviderApiKey(result.resolvedConfig)).toBe("local-fallback-key");
@@ -617,6 +618,7 @@ describe("resolveCommandSecretRefsViaGateway", () => {
           } as unknown as OpenClawConfig,
           commandName: "agent",
           targetIds: new Set(["plugins.entries.google.config.webSearch.apiKey"]),
+          allowLocalFallback: true,
         });
 
         const googleWebSearchConfig = result.resolvedConfig.plugins?.entries?.google?.config as
@@ -662,6 +664,7 @@ describe("resolveCommandSecretRefsViaGateway", () => {
           } as unknown as OpenClawConfig,
           commandName: "agent",
           targetIds: new Set(["plugins.entries.firecrawl.config.webFetch.apiKey"]),
+          allowLocalFallback: true,
         });
 
         const firecrawlConfig = result.resolvedConfig.plugins?.entries?.firecrawl?.config as
@@ -697,6 +700,7 @@ describe("resolveCommandSecretRefsViaGateway", () => {
         } as unknown as OpenClawConfig,
         commandName: "infer web fetch",
         targetIds: new Set(["tools.web.fetch.firecrawl.apiKey"]),
+        allowLocalFallback: true,
       });
 
       const fetchConfig = result.resolvedConfig.tools?.web?.fetch as
@@ -728,6 +732,7 @@ describe("resolveCommandSecretRefsViaGateway", () => {
         commandName: "infer web search",
         targetIds: new Set(["tools.web.search.apiKey"]),
         forcedActivePaths: new Set(["tools.web.search.apiKey"]),
+        allowLocalFallback: true,
       });
 
       expect(result.resolvedConfig.tools?.web?.search?.apiKey).toBe(
@@ -772,6 +777,7 @@ describe("resolveCommandSecretRefsViaGateway", () => {
             },
           } as unknown as OpenClawConfig,
           commandName: "infer web fetch",
+          allowLocalFallback: true,
           targetIds: new Set(["plugins.entries.firecrawl.config.webSearch.apiKey"]),
           allowedPaths: new Set(["plugins.entries.firecrawl.config.webSearch.apiKey"]),
           forcedActivePaths: new Set(["plugins.entries.firecrawl.config.webSearch.apiKey"]),
@@ -830,6 +836,7 @@ describe("resolveCommandSecretRefsViaGateway", () => {
             },
           } as unknown as OpenClawConfig,
           commandName: "infer web fetch",
+          allowLocalFallback: true,
           targetIds: new Set(["plugins.entries.firecrawl.config.webSearch.apiKey"]),
           allowedPaths: new Set(["plugins.entries.firecrawl.config.webSearch.apiKey"]),
           forcedActivePaths: new Set(["plugins.entries.firecrawl.config.webSearch.apiKey"]),
@@ -873,6 +880,7 @@ describe("resolveCommandSecretRefsViaGateway", () => {
           },
         } as unknown as OpenClawConfig,
         commandName: "infer web search",
+        allowLocalFallback: true,
         targetIds: new Set(["models.providers.*.apiKey"]),
         allowedPaths: new Set(["models.providers.google.apiKey"]),
         forcedActivePaths: new Set(["models.providers.google.apiKey"]),
@@ -917,6 +925,7 @@ describe("resolveCommandSecretRefsViaGateway", () => {
           },
         } as OpenClawConfig,
         commandName: "agent",
+        allowLocalFallback: true,
         targetIds: new Set(["plugins.entries.google.config.webSearch.apiKey"]),
       });
 
@@ -1013,10 +1022,7 @@ describe("resolveCommandSecretRefsViaGateway", () => {
 
     await withEnvValue(envKey, undefined, async () => {
       await expect(resolveTalkProviderApiKey({ envKey })).rejects.toThrow(
-        new RegExp(
-          `${TALK_TEST_PROVIDER_API_KEY_PATH.replaceAll(".", "\\.")} is unresolved in the active runtime snapshot`,
-          "i",
-        ),
+        "memory status: active gateway returned an incomplete secret snapshot. Local SecretRef fallback is disabled for active runtime secrets.",
       );
     });
   });
@@ -1150,6 +1156,25 @@ describe("resolveCommandSecretRefsViaGateway", () => {
           ),
         ),
       ).toBe(true);
+    });
+  });
+
+  it("fails closed on an incomplete gateway snapshot in enforce mode", async () => {
+    const envKey = "TALK_API_KEY_PARTIAL_GATEWAY_ENFORCED";
+    callGateway.mockResolvedValueOnce({
+      assignments: [],
+      diagnostics: [],
+    });
+    await withEnvValue(envKey, "must-not-fallback", async () => {
+      await expect(
+        resolveTalkProviderApiKey({
+          envKey,
+          commandName: "message send",
+          mode: "enforce_resolved",
+        }),
+      ).rejects.toThrow(
+        "message send: active gateway returned an incomplete secret snapshot. Local SecretRef fallback is disabled for active runtime secrets.",
+      );
     });
   });
 
