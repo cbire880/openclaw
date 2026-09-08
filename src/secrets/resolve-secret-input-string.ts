@@ -2,6 +2,7 @@ import type { OpenClawConfig } from "../config/types.openclaw.js";
 import {
   normalizeSecretInputString,
   resolveSecretInputRef,
+  UnresolvedSecretInputError,
   type SecretRef,
 } from "../config/types.secrets.js";
 import { resolveSecretRefString } from "./resolve.js";
@@ -21,6 +22,8 @@ export async function resolveSecretInputString(params: {
   env: NodeJS.ProcessEnv;
   /** SecretRef defaults used when `value` omits source/provider aliases. */
   defaults?: SecretDefaults;
+  /** Config path used to identify unresolved values at the final read boundary. */
+  path?: string;
   /** Surface-specific normalization for resolved or inline values. */
   normalize?: (value: unknown) => string | undefined;
   /** Converts provider resolution failures into caller-specific errors. */
@@ -45,7 +48,14 @@ export async function resolveSecretInputString(params: {
     if (params.onResolveRefError) {
       return params.onResolveRefError(error, ref);
     }
-    throw error;
+    if (error instanceof UnresolvedSecretInputError) {
+      throw error;
+    }
+    throw new UnresolvedSecretInputError({
+      path: params.path ?? "secret input",
+      ref,
+      cause: error,
+    });
   }
   return normalize(resolved);
 }
