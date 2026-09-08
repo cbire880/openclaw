@@ -204,6 +204,7 @@ function makeBaseParams(overrides: {
   deliveryBestEffort?: boolean;
   runSessionKey?: string;
   resolvedDeliveryMode?: "explicit" | "implicit";
+  onDeliveryReceipt?: (receipt: unknown) => Promise<void> | void;
 }): Parameters<typeof dispatchCronDelivery>[0] {
   const resolvedDelivery = {
     ...makeResolvedDelivery(),
@@ -247,6 +248,7 @@ function makeBaseParams(overrides: {
     abortSignal: undefined,
     isAborted: () => false,
     abortReason: () => "aborted",
+    onDeliveryReceipt: overrides.onDeliveryReceipt,
     withRunSession: makeWithRunSession(),
   };
 }
@@ -318,6 +320,33 @@ describe("dispatchCronDelivery — double-announce guard", () => {
       messageId: "mirror-message",
     });
     maybeApplyTtsToPayloadMock.mockReset().mockImplementation(async (params) => params.payload);
+  });
+
+  it("emits the receipt after transport succeeds and before bookkeeping", async () => {
+    const events: string[] = [];
+    vi.mocked(deliverOutboundPayloads).mockImplementationOnce(async () => {
+      events.push("transport-succeeded");
+      return [{ ok: true } as never];
+    });
+    vi.mocked(appendAssistantMessageToSessionTranscript).mockImplementationOnce(async () => {
+      events.push("bookkeeping");
+      return { ok: true, sessionFile: "session.jsonl", messageId: "mirror-message" };
+    });
+
+    const receipt = vi.fn(async () => {
+      events.push("receipt");
+    });
+    const state = await dispatchCronDelivery(
+      makeBaseParams({ synthesizedText: "delivered", onDeliveryReceipt: receipt }),
+    );
+
+    expect(state.delivered).toBe(true);
+    expect(receipt).toHaveBeenCalledOnce();
+    expect(receipt).toHaveBeenCalledWith(
+      expect.objectContaining({ phase: "transport-succeeded", channel: "telegram", to: "123456" }),
+    );
+    expect(events.indexOf("transport-succeeded")).toBeLessThan(events.indexOf("receipt"));
+    expect(events.indexOf("receipt")).toBeLessThan(events.indexOf("bookkeeping"));
   });
 
   afterEach(() => {

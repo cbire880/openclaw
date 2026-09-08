@@ -42,7 +42,7 @@ import { createLazyImportLoader } from "../../shared/lazy-promise.js";
 import { shouldAttemptTtsPayload } from "../../tts/tts-config.js";
 import { createCronExecutionId } from "../run-id.js";
 import { hasScheduledNextRunAtMs } from "../service/jobs.js";
-import type { CronJob, CronRunTelemetry } from "../types.js";
+import type { CronDeliveryReceipt, CronJob, CronRunTelemetry } from "../types.js";
 import type { DeliveryTargetResolution } from "./delivery-target.js";
 import { pickLastNonEmptyTextFromPayloads, pickSummaryFromOutput } from "./helpers.js";
 import type { RunCronAgentTurnResult } from "./run.types.js";
@@ -121,6 +121,12 @@ type DispatchCronDeliveryParams = {
   abortSignal?: AbortSignal;
   isAborted: () => boolean;
   abortReason: () => string;
+  /**
+   * Receives a transport receipt before cron state bookkeeping continues.
+   * The callback is awaited so a durable consumer can persist the receipt in
+   * the post-transport/pre-state-write window.
+   */
+  onDeliveryReceipt?: (receipt: CronDeliveryReceipt) => Promise<void> | void;
   withRunSession: (
     result: Omit<RunCronAgentTurnResult, "sessionId" | "sessionKey">,
   ) => RunCronAgentTurnResult;
@@ -983,6 +989,18 @@ export async function dispatchCronDelivery(
         : await runDelivery();
       // Only mark delivered when ALL payloads succeeded (no partial failure).
       delivered = deliveryResults.length > 0 && !hadPartialFailure;
+      if (delivered) {
+        await params.onDeliveryReceipt?.({
+          executionId: createCronExecutionId(params.job.id, params.runStartedAt),
+          deliveryIdempotencyKey,
+          phase: "transport-succeeded",
+          recordedAt: Date.now(),
+          channel: delivery.channel,
+          to: delivery.to,
+          ...(delivery.accountId ? { accountId: delivery.accountId } : {}),
+          ...(delivery.threadId != null ? { threadId: delivery.threadId } : {}),
+        });
+      }
       // Intentionally leave partial success uncached: replay may duplicate the
       // successful subset, but caching it here would permanently drop the
       // failed payloads by converting the replay into delivered=true.
