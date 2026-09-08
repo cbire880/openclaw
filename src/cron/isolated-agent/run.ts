@@ -41,6 +41,7 @@ import {
 import type {
   CronAgentExecutionPhaseUpdate,
   CronAgentExecutionStarted,
+  CronDeliveryReceipt,
   CronDeliveryTrace,
   CronDeliveryTraceMessageTarget,
   CronDeliveryTraceTarget,
@@ -445,6 +446,8 @@ type RunCronAgentTurnParams = {
   signal?: AbortSignal;
   onExecutionStarted?: (info?: CronAgentExecutionStarted) => void;
   onExecutionPhase?: (info: CronAgentExecutionPhaseUpdate) => void;
+  /** Receives a durable receipt after transport succeeds and before delivery bookkeeping. */
+  onDeliveryReceipt?: (receipt: CronDeliveryReceipt) => Promise<void> | void;
   sessionKey: string;
   agentId?: string;
   lane?: string;
@@ -1126,6 +1129,7 @@ async function finalizeCronRun(params: {
     abortSignal: prepared.input.abortSignal ?? prepared.input.signal,
     isAborted: params.isAborted,
     abortReason: params.abortReason,
+    onDeliveryReceipt: prepared.input.onDeliveryReceipt,
     withRunSession: prepared.withRunSession,
   });
   const deliveryTrace = buildCronDeliveryTrace({
@@ -1215,6 +1219,7 @@ export async function runCronIsolatedAgentTurn(params: {
   signal?: AbortSignal;
   onExecutionStarted?: (info?: CronAgentExecutionStarted) => void;
   onExecutionPhase?: (info: CronAgentExecutionPhaseUpdate) => void;
+  onDeliveryReceipt?: (receipt: CronDeliveryReceipt) => Promise<void> | void;
   sessionKey: string;
   agentId?: string;
   lane?: string;
