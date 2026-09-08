@@ -1017,6 +1017,12 @@ export async function resolveCommandSecretRefsViaGateway(params: {
     resolvedState: "resolved_gateway",
   });
   if (analyzed.unresolved.length > 0) {
+    const localFallbackAllowed = params.allowLocalFallback === true || mode !== "enforce_resolved";
+    if (!localFallbackAllowed) {
+      throw new Error(
+        `${params.commandName}: active gateway returned an incomplete secret snapshot. Local SecretRef fallback is disabled for active runtime secrets.`,
+      );
+    }
     try {
       const localFallback = await resolveCommandSecretRefsLocally({
         config: params.config,
