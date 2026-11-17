@@ -104,6 +104,17 @@ export function parseScriptPayloadResult(
   if (!isRecord(candidate)) {
     return scriptFailure("cron script payload must return an object");
   }
+  if (
+    (candidate.status === "completed" || candidate.status === "failed") &&
+    (typeof candidate.exitCode === "number" || candidate.exitCode === null) &&
+    typeof candidate.aggregated === "string" &&
+    (candidate.status === "failed" || candidate.exitCode !== 0)
+  ) {
+    const exitCode = candidate.exitCode === null ? "unknown" : candidate.exitCode;
+    return scriptFailure(
+      `cron script payload returned exec result with status ${candidate.status} and exit code ${exitCode}`,
+    );
+  }
   if (candidate.notify !== undefined && typeof candidate.notify !== "string") {
     return scriptFailure("cron script payload notify must be a string");
   }

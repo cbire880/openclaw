@@ -630,3 +630,26 @@ it.each([
     error: expect.stringContaining(error),
   });
 });
+
+it.each([
+  [{ status: "completed", exitCode: 128, aggregated: "clone failed" }, "exit code 128"],
+  [{ status: "failed", exitCode: null, aggregated: "", message: "command aborted" }, "failed"],
+] as const)("rejects a returned failed exec result %#", async (value, error) => {
+  const runtime = createEvaluator(completed(value));
+
+  await expect(runtime.executePayload()).resolves.toMatchObject({
+    kind: "error",
+    error: expect.stringContaining(error),
+  });
+});
+
+it("accepts a returned successful exec result", async () => {
+  const runtime = createEvaluator(
+    completed({ status: "completed", exitCode: 0, aggregated: "command output" }),
+  );
+
+  await expect(runtime.executePayload()).resolves.toEqual({
+    kind: "completed",
+    stateChanged: false,
+  });
+});
