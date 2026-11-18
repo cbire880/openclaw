@@ -208,6 +208,35 @@ describe("update global helpers", () => {
     });
   });
 
+  it("runs the npm lifecycle-policy probe from the selected package root", async () => {
+    const prefix = dirs.make("openclaw-npm-owner-broker-cwd-");
+    const { globalRoot, pkgRoot: packageRoot } = await npmFixture(prefix);
+    const owningNpm = path.join(prefix, "bin/npm");
+    await writeFixture(prefix, "bin/npm", "");
+    const runCommand = vi.fn<CommandRunner>(async (argv, options) => {
+      if (argv[0] === owningNpm && argv[1] === "root") {
+        return commandResult(`${globalRoot}\n`);
+      }
+      if (argv[0] === owningNpm && argv[1] === "--version") {
+        // Without an explicit cwd a broker can fail before npm receives an
+        // execve call when its own working directory is protected.
+        if (options.cwd !== packageRoot) {
+          return { stdout: "", stderr: "launch or output capture (EACCES)", code: 1 };
+        }
+        return commandResult("12.0.0\n");
+      }
+      throw new Error(`unexpected command: ${argv.join(" ")}`);
+    });
+
+    await expect(resolveTarget(runCommand, packageRoot)).resolves.toMatchObject({
+      npmOwner: { version: "12.0.0", lifecyclePolicy: "allow-scripts" },
+    });
+    expect(runCommand).toHaveBeenCalledWith(
+      [owningNpm, "--version"],
+      expect.objectContaining({ cwd: packageRoot }),
+    );
+  });
+
   it("defaults corepack download prompts off for global install env", async () => {
     const defaultEnv = await createGlobalInstallEnv({});
     expect(defaultEnv).toMatchObject({

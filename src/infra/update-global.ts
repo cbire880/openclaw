@@ -106,11 +106,15 @@ export function resolveNpmLifecyclePolicyGate(
 
 async function resolveNpmOwner(params: {
   command: string;
+  cwd: string;
   runCommand: CommandRunner;
   timeoutMs: number;
 }): Promise<NonNullable<ResolvedGlobalInstallTarget["npmOwner"]>> {
   const result = await params
-    .runCommand([params.command, "--version"], { timeoutMs: params.timeoutMs })
+    // Spawn brokers retain their own working directory when one is omitted.
+    // Probe from the selected install instead, so an inaccessible broker cwd
+    // cannot prevent the fail-closed lifecycle-policy check from running.
+    .runCommand([params.command, "--version"], { cwd: params.cwd, timeoutMs: params.timeoutMs })
     .catch((error: unknown) => ({
       stdout: "",
       stderr: coerceErrorMessage(error),
@@ -980,6 +984,7 @@ export async function resolveGlobalInstallTarget(params: {
     command.manager === "npm"
       ? await resolveNpmOwner({
           command: command.command,
+          cwd: packageRoot ?? targetGlobalRoot ?? process.cwd(),
           runCommand: params.runCommand,
           timeoutMs: params.timeoutMs,
         })
